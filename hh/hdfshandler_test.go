@@ -1,12 +1,14 @@
 package hh
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/lulugyf/sshserv/hdfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -32,6 +34,28 @@ func TestInitialization(t *testing.T) {
 func Test123(t *testing.T) {
 	x := strings.SplitN("1 2 3", " ", 2)
 	fmt.Printf("%d\n", len(x))
+	if u, err := user.LookupId("1000"); err == nil {
+		fmt.Printf("username of id=1000 => [%v]\n", u.Username)
+	}else{
+		fmt.Printf("can not found user\n")
+	}
+
+}
+
+func Test2(t *testing.T) {
+	hosts := os.Getenv("hosts")
+	if hosts != "" {
+		var dhosts map[string]string
+		err := json.Unmarshal([]byte(hosts), &dhosts)
+		if err == nil {
+			fmt.Printf(" host[MyHost]=[%s]\n", dhosts["MyHost"])
+			fmt.Printf("xx=[%s]\n", dhosts["xx"])
+		}else{
+			fmt.Printf(" json parse failed: %v\n", err)
+		}
+	}else{
+		fmt.Println("hosts not found")
+	}
 }
 
 func _TestReadFile1(t *testing.T) {

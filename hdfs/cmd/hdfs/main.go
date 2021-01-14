@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/user"
+	"strings"
 	"time"
+	"context"
 
 	"github.com/lulugyf/sshserv/hdfs"
 	"github.com/lulugyf/sshserv/hdfs/hadoopconf"
@@ -189,7 +192,12 @@ func getClient(namenode string) (*hdfs.Client, error) {
 
 	options := hdfs.ClientOptionsFromConf(conf)
 	if namenode != "" {
-		options.Addresses = []string{namenode}
+		if strings.Index(namenode, ",") > 0 {
+			options.Addresses = strings.Split(namenode, ",")
+		}else {
+			options.Addresses = []string{namenode}
+		}
+
 	}
 
 	if options.Addresses == nil {
@@ -213,12 +221,34 @@ func getClient(namenode string) (*hdfs.Client, error) {
 		}
 	}
 
-	// Set some basic defaults.
-	dialFunc := (&net.Dialer{
-		Timeout:   5 * time.Second,
-		KeepAlive: 5 * time.Second,
-		DualStack: true,
-	}).DialContext
+	var dialFunc func(ctx context.Context, network, addr string) (net.Conn, error) = nil
+
+	hosts := os.Getenv("hosts")
+	if hosts != "" {
+		var dd map[string]string
+		if err := json.Unmarshal([]byte(hosts), &dd); err == nil {
+			origDialer := (&net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 5 * time.Second,
+			}).DialContext
+			dialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				addr1 := addr
+				if len(addr) > 0 && ( addr[0] > '9' || addr[0] < '0' ) {
+					p := strings.LastIndex(addr, ":")
+					addr1 = fmt.Sprintf("%s:%s", dd[addr[:p]], addr[p+1:])
+				}
+				return origDialer(ctx, network, addr1)
+			}
+		}
+	}
+
+	if dialFunc == nil {
+		// Set some basic defaults.
+		dialFunc = (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 5 * time.Second,
+		}).DialContext
+	}
 
 	options.NamenodeDialFunc = dialFunc
 	options.DatanodeDialFunc = dialFunc

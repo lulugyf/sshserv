@@ -40,7 +40,7 @@ func (l listerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 
 /*
  convert Sys() type, so ls can showed properly
-   (ls -l)'s return format code position: github.com/pkg/sftp/request.go: filelist() -> server_unix.go: runLs()
+   (ls -l)'s return format code position: sftp/request.go: filelist() -> sftp/server_unix.go: runLs()
 */
 func (fi sftpFileInfo) Sys() interface{} {
 	st := fi.h.Sys().(*syscall.Stat_t)

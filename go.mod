@@ -14,6 +14,7 @@ require (
 	github.com/kr/pty v1.1.8
 	github.com/lib/pq v1.9.0
 	github.com/mattn/go-sqlite3 v1.14.5
+	github.com/pborman/getopt v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.12.0
 	github.com/rs/xid v1.2.1

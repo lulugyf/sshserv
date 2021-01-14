@@ -372,8 +372,10 @@ func resolveVar(namenodes []string, conf map[string]string) []string {
 func (h *HConnection)myDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 	addr1 := addr
 	if len(addr) > 0 && ( addr[0] > '9' || addr[0] < '0' ) {
-		i := strings.SplitN(addr, ":", 2)
-		addr1 = fmt.Sprintf("%s:%s", h.hosts[i[0]], i[1])
+		//i := strings.SplitN(addr, ":", 2)
+		//addr1 = fmt.Sprintf("%s:%s", h.hosts[i[0]], i[1])
+		p := strings.LastIndex(addr, ":")
+		addr1 = fmt.Sprintf("%s:%s", h.hosts[addr[:p]], addr[p+1:])
 	}
 	return (&net.Dialer{}).DialContext(ctx, network, addr1)
 }
