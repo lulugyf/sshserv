@@ -152,7 +152,7 @@ func (f *FileReader) Seek(offset int64, whence int) (int64, error) {
 	}
 
 	if off < 0 || off > f.info.Size() {
-		return f.offset, fmt.Errorf("invalid resulting offset: %d", off)
+		return f.offset, fmt.Errorf("invalid resulting [%s] offset: %d  size=%d %d", f.Name(), off, f.info.Size(), f.Stat().Size())
 	}
 
 	if f.offset != off {

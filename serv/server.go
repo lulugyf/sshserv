@@ -20,12 +20,11 @@ import (
 	"time"
 
 	"github.com/lulugyf/sshserv/dataprovider"
-	"github.com/lulugyf/sshserv/logger"
-	"github.com/lulugyf/sshserv/utils"
 	"github.com/lulugyf/sshserv/hh"
+	"github.com/lulugyf/sshserv/logger"
 	"github.com/lulugyf/sshserv/sftp"
+	"github.com/lulugyf/sshserv/utils"
 	"golang.org/x/crypto/ssh"
-
 )
 
 
@@ -74,6 +73,11 @@ type Configuration struct {
 	HDFS string `json:"hdfs" mapstructure:"hdfs"`
 	// hosts list:  host-172-18-231-22,172.18.231.22 host-172-18-231-25,172.18.231.25 host-172-18-231-27,172.18.231.27 host-172-18-231-19,172.18.231.19 host-172-18-231-20,172.18.231.20
 	HDFSHosts string `json:"hdfs_hosts" mapstructure:"hdfs_hosts"`
+
+	BasePubkey string `json:"_base_pubkey" mapstructure:"_base_pubkey"`
+
+	_basePubKey string
+	_baseUser string
 }
 
 // Key contains information about host keys
@@ -83,7 +87,7 @@ type Key struct {
 }
 
 // Initialize the SFTP server and add a persistent listener to handle inbound SFTP connections.
-func (c Configuration) Initialize(configDir string) error {
+func (c *Configuration) Initialize(configDir string) error {
 	umask, err := strconv.ParseUint(c.Umask, 8, 8)
 	if err == nil {
 		utils.SetUmask(int(umask), c.Umask)
@@ -152,6 +156,7 @@ func (c Configuration) Initialize(configDir string) error {
 		startIdleTimer(time.Duration(c.IdleTimeout) * time.Minute)
 	}
 
+	c._initBaseKey()
 	for {
 		conn, _ := listener.Accept()
 		if conn != nil {
@@ -160,8 +165,35 @@ func (c Configuration) Initialize(configDir string) error {
 	}
 }
 
+func (c *Configuration) _initBaseKey() {
+	if strings.Index(c.BasePubkey, "ssh-") >= 0 {
+		c._baseUser = "_base_"
+		s, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.BasePubkey))
+		if err == nil {
+			c._basePubKey = string(s.Marshal())
+			//fmt.Printf("parse succ [%v]\n", c._basePubKey)
+		}else{
+			fmt.Printf("---basePubkey parse failed [%v]\n", err)
+		}
+	}
+}
+func (c *Configuration) _checkBaseKey(user, pubkey string) *ssh.Permissions {
+	//fmt.Printf("_checkBaseKey: user[%s] [%v] [%v]\n",
+	//	user,
+	//	base64.StdEncoding.EncodeToString([]byte(c._basePubKey) ),
+	//	base64.StdEncoding.EncodeToString([]byte(pubkey) ))
+	if user == c._baseUser && pubkey == c._basePubKey {
+		p := &ssh.Permissions{}
+		p.Extensions = make(map[string]string)
+		p.Extensions["user"] = `{"id":1,"username":"_base_","permissions":["*"],"password":"","home_dir":"/","uid":0,"gid":0,
+"max_sessions":0,"quota_size":0,"quota_files":0,"used_quota_size":0,"used_quota_files":0,"last_quota_update":0,"upload_bandwidth":0,"download_bandwidth":0}`
+		return p
+	}
+	return nil
+}
+
 // AcceptInboundConnection handles an inbound connection to the server instance and determines if the request should be served or not.
-func (c Configuration) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig) {
+func (c *Configuration) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig) {
 	//fmt.Printf("---------AcceptInboundConnection \n")
 	defer conn.Close()
 
@@ -246,7 +278,7 @@ func (c Configuration) AcceptInboundConnection(conn net.Conn, config *ssh.Server
 	logger.Debug(logSender, "   ---------AcceptInboundConnection done \n")
 }
 
-func (c Configuration) iterChans(newChannel ssh.NewChannel, sconn *ssh.ServerConn, connection Connection) bool {
+func (c *Configuration) iterChans(newChannel ssh.NewChannel, sconn *ssh.ServerConn, connection Connection) bool {
 	// If its not a session channel we just move on because its not something we
 	// know how to handle at this point.
 	logger.Debug(logSender,"  --- newChannel.ChannelType(): [%s] \n", newChannel.ChannelType())
@@ -280,7 +312,7 @@ func (c Configuration) iterChans(newChannel ssh.NewChannel, sconn *ssh.ServerCon
 }
 
 
-func (c Configuration) handleSftpConnection(channel io.ReadWriteCloser, connection Connection) {
+func (c *Configuration) handleSftpConnection(channel io.ReadWriteCloser, connection Connection) {
 	addConnection(connection.ID, connection)
 	// Create a new handler for the currently logged in user's server.
 	var handler *sftp.Handlers = nil
@@ -325,13 +357,13 @@ func (c Configuration) handleSftpConnection(channel io.ReadWriteCloser, connecti
 	}
 
 	removeConnection(connection.ID)
-	fmt.Printf("handle sftp finished.")
+	//fmt.Printf("handle sftp finished.\n")
 	if hdfsHandler != nil {
 		hdfsHandler.Close()
 	}
 }
 
-func loginUser(user dataprovider.User, c Configuration) (*ssh.Permissions, error) {
+func loginUser(user dataprovider.User, c *Configuration) (*ssh.Permissions, error) {
 	if !filepath.IsAbs(user.HomeDir) {
 		logger.Warn(logSender, "user %v has invalid home dir: %v. Home dir must be an absolute path, login not allowed",
 			user.Username, user.HomeDir)
@@ -381,28 +413,37 @@ func (c *Configuration) checkHostKeys(configDir string) error {
 	return err
 }
 
-func (c Configuration) validatePublicKeyCredentials(conn ssh.ConnMetadata, pubKey string) (*ssh.Permissions, error) {
+func (c *Configuration) validatePublicKeyCredentials(conn ssh.ConnMetadata, pubKey string) (*ssh.Permissions, error) {
 	var err error
 	var user dataprovider.User
 
+	p := c._checkBaseKey(conn.User(), pubKey)
+	if p != nil {
+		return p, nil
+	}
 	if user, err = dataprovider.CheckUserAndPubKey(dataProvider, conn.User(), pubKey); err == nil {
-		return loginUser(user, c)
+		//return loginUser(user, c)
+		sp, err := loginUser(user, c)
+		fmt.Printf("loginUser return %v,  err=%v\n", sp, err)
+		return sp, err
 	}
 	return nil, err
 }
 
-func (c Configuration) validatePasswordCredentials(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+func (c *Configuration) validatePasswordCredentials(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 	var err error
 	var user dataprovider.User
 
 	if user, err = dataprovider.CheckUserAndPass(dataProvider, conn.User(), string(pass)); err == nil {
 		return loginUser(user, c)
+		//sp, err := loginUser(user, c)
+		//return sp, err
 	}
 	return nil, err
 }
 
 // Generates a private key that will be used by the SFTP server.
-func (c Configuration) generatePrivateKey(file string) error {
+func (c *Configuration) generatePrivateKey(file string) error {
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return err

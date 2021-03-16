@@ -14,7 +14,8 @@
     },
     "keys": [],
     "enable_scp": true,
-    "full_func": true
+    "full_func": true,
+    "_base_pubkey": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDIDBWpa5/gMVrePUzz68iORBVcc+QL9E71j6PWM//80aZNzj4/xyKwi1t+iQvCRd3DWYIhpcit2WU2T9CcarskLe0gaZI8R6gMeDknuuHdMGkEms8zeu+BFlBNn9PAdlZ49KccmsUo7Z8W0Vq0Ls9gxI7habSE0vTii7sFQHy8EP3miQ9nntNa/Qc7EO+glOf9OfVzq1giNY0gY67u+iWavrlZSdydbL0RyNa2sc9miFUWlvS9Nhy+jLdhsoA8dvSs+1WntBbhJKu3SWQ4QGsa3n2D3txylM9ygyJg/WqVhVkmcDV1XT7UBM5wXOmKx6pfig2N6m5hHPTVluZIahKp"
   },
   "data_provider": {
     "driver": "sqlite",

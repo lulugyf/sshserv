@@ -127,7 +127,7 @@ func handleWindowChanged(req *ssh.Request, fPty *os.File) {
 
 
 
-func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Connection, c Configuration) {
+func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Connection, c *Configuration) {
 	var fPty *os.File = nil
 	var tty *os.File = nil
 	for req := range in {

@@ -1,16 +1,16 @@
 package hh
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"context"
 	"net"
 
+	"github.com/lulugyf/sshserv/dataprovider"
 	//"github.com/colinmarc/hdfs/protocol/hadoop_hdfs"
 	"github.com/lulugyf/sshserv/hdfs"
 	"github.com/lulugyf/sshserv/hdfs/hadoopconf"
 	"github.com/lulugyf/sshserv/hdfs/intrnl/protocol/hadoop_hdfs"
-	"github.com/lulugyf/sshserv/dataprovider"
 	"github.com/lulugyf/sshserv/logger"
 	"github.com/lulugyf/sshserv/sftp"
 	"io"
@@ -59,8 +59,18 @@ type HTransfer struct {
 func (t *HTransfer) ReadAt(p []byte, off int64) (n int, err error) {
 	t.lastActivity = time.Now()
 	if t.rfile != nil {
+		if off == t.rfile.Stat().Size() {
+			return 0, io.EOF
+		}else if off > t.rfile.Stat().Size() {
+			fmt.Printf("---- error offset size=%d off=%d\n", t.rfile.Stat().Size(), off)
+			return 0, io.EOF
+		}
 		readed, e := t.rfile.ReadAt(p, off)
+		//fmt.Printf("--hdfshandler:ReadAt %d %v  off:%d\n", readed, e, off)
 		t.bytesSent += int64(readed)
+		if e == io.EOF {
+			return readed, nil
+		}
 		return readed, e
 	}
 	return -1, errors.New("file not open")
@@ -297,7 +307,11 @@ func (l listerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 
 	//fmt.Printf("--- listAt: local len: %d, needlen: %d offset: %d\n", len(l), len(f), offset)
 	n := 0
-	for i, fi := range l[offset:] {
+	right_n := int64(len(l))-offset
+	if int64(len(f)) < right_n {
+		right_n = int64(len(f))
+	}
+	for i, fi := range l[offset: offset+right_n] {
 		f[i] = & sftpFileInfo{fi.(*hdfs.FileInfo) }
 		n += 1
 	}
@@ -425,13 +439,13 @@ func (h *HConnection)Close() {
 		h.client = nil
 	}
 }
-func (h *HConnection)FileRead(fpath string ) string{
-	//client, _ := hdfs.New("namenode:8020")
-
-	file, _ := h.client.Open(fpath)
-
-	buf := make([]byte, 200)
-	file.ReadAt(buf, 10847)
-
-	return string(buf)
-}
+//func (h *HConnection)FileRead(fpath string ) string{
+//	//client, _ := hdfs.New("namenode:8020")
+//
+//	file, _ := h.client.Open(fpath)
+//
+//	buf := make([]byte, 200)
+//	file.ReadAt(buf, 10847)
+//
+//	return string(buf)
+//}

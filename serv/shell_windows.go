@@ -86,7 +86,7 @@ func handleWindowChanged(req *ssh.Request, pty *winpty.WinPTY) {
 }
 
 
-func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Connection, c Configuration) {
+func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Connection, c *Configuration) {
 	var pty *winpty.WinPTY = nil
 	var payload_return []byte = nil
 	for req := range in {

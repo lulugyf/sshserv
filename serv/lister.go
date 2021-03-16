@@ -1,12 +1,8 @@
 package serv
 
 import (
-	"fmt"
-	"github.com/lulugyf/sshserv/sftp"
 	"io"
 	"os"
-	"syscall"
-	"os/user"
 	"time"
 )
 
@@ -38,30 +34,7 @@ func (l listerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 
 
 
-/*
- convert Sys() type, so ls can showed properly
-   (ls -l)'s return format code position: sftp/request.go: filelist() -> sftp/server_unix.go: runLs()
-*/
-func (fi sftpFileInfo) Sys() interface{} {
-	st := fi.h.Sys().(*syscall.Stat_t)
-	uname := ""
-	gname := ""
-	u, err := user.LookupId(fmt.Sprintf("%d", st.Uid) )
-	if err == nil {
-		uname = u.Username
-	}
-	g, err := user.LookupGroupId(fmt.Sprintf("%d", st.Gid))
-	if err == nil {
-		gname = g.Name
-	}
-	return &sftp.SftpFileAttr{
-		Uid: st.Uid,
-		Gid: st.Gid,
-		Nlink: st.Nlink,
-		Uname: uname, //st.GetOwner(),
-		Gname: gname, // st.GetGroup(),
-	}
-}
+
 
 func (fi sftpFileInfo)Name() string {
 	return fi.h.Name()

@@ -12,7 +12,7 @@ import (
 
 var world = []byte("world")
 
-func main() {
+func main_1() {
 	db, err := bolt.Open("/tmp/bolt.db", 0644, nil)
 	if err != nil {
 		log.Fatal(err)

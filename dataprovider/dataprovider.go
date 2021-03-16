@@ -302,12 +302,17 @@ func checkUserAndPubKey(user User, pubKey string) (User, error) {
 		return user, errors.New("Invalid credentials")
 	}
 	for i, k := range user.PublicKeys {
+		//fmt.Printf("--check key---- [%s] [%s]\n", k, pubKey)
 		storedPubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k))
 		if err != nil {
 			logger.Warn(logSender, "error parsing stored public key %d for user %v: %v", i, user.Username, err)
 			return user, err
 		}
+		//fmt.Printf("---user=%s\n", user.Username)
+		//fmt.Printf(" ---[%s]\n", base64.StdEncoding.EncodeToString([]byte(pubKey) ))
+		//fmt.Printf(" ---[%s]\n", base64.StdEncoding.EncodeToString(storedPubKey.Marshal() ))
 		if string(storedPubKey.Marshal()) == pubKey {
+			//fmt.Printf(" --login success!\n")
 			return user, nil
 		}
 	}

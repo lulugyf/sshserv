@@ -30,7 +30,7 @@ func test1() {
 	}
 }
 
-func main() {
+func main__() {
 	kubecfg := flag.String("c", "", "kubeconfig file path(optional)")
 	flag.Parse()
 	if len(flag.Args()) != 2 {

@@ -27,6 +27,18 @@ Full featured and highly configurable SSH server. Based on sftpgo
 - Shell, linux and windows
 - HDFS filesystem support, based on https://github.com/colinmarc/hdfs
 
+## compile
+
+- Linux
+
+go build -ldflags="-s -w"
+
+- Compile for Windows on Linux
+
+GOOS=windows GOARCH=amd64 go build
+
+(Do not use sqlite Provider, use bolt instead.) 
+
 ## 使用方法样例
 
  基于sqlite3保存登录信息
