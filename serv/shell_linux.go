@@ -3,11 +3,14 @@
 package serv
 
 import (
-	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"github.com/lulugyf/sshserv/dataprovider"
 	"github.com/lulugyf/sshserv/logger"
-	"github.com/kr/pty"
+	//"github.com/kr/pty"
+	"github.com/creack/pty"
+	"github.com/anmitsu/go-shlex"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -66,12 +69,17 @@ func handleShell(req *ssh.Request, channel ssh.Channel, f, tty *os.File, homedir
 	var shell string
 	shell = os.Getenv("SHELL")
 	if shell == "" {
-		shell = defaultShell
+		_, err := os.Stat("/bin/bash")
+		if err == nil {
+			shell = "/bin/bash"
+		}else {
+			shell = defaultShell
+		}
 	}
 
 	cmd := exec.Command(shell)
 	cmd.Dir = homedir
-	cmd.Env = []string{"TERM=xterm"}
+	cmd.Env = append(os.Environ(), "TERM=xterm", fmt.Sprintf("HOME=%s", homedir))
 	err := PtyRun(cmd, tty)
 	if err != nil {
 		logger.Warn("", "%s", err)
@@ -81,6 +89,8 @@ func handleShell(req *ssh.Request, channel ssh.Channel, f, tty *os.File, homedir
 	var once sync.Once
 	close := func() {
 		channel.Close()
+		f.Close()
+		tty.Close()
 		p_stat, err := cmd.Process.Wait()
 		logger.Warn(logShell,"session closed, p_stat: %v err: %v", p_stat, err)
 	}
@@ -120,6 +130,87 @@ func handlePtrReq(req *ssh.Request) (*os.File, *os.File){
 	return fPty, tty
 }
 
+
+func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
+	if buf == nil {
+		size := 32 * 1024
+		if l, ok := src.(*io.LimitedReader); ok && int64(size) > l.N {
+			if l.N < 1 {
+				size = 1
+			} else {
+				size = int(l.N)
+			}
+		}
+		buf = make([]byte, size)
+	}
+	for {
+		nr, er := src.Read(buf)
+		fmt.Printf("---- read nbytes: %d, err: %v\n", nr, er)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
+
+func handleExec(req *ssh.Request, channel ssh.Channel, cmd *exec.Cmd) error{
+	fPty, tty, err := pty.Open()
+	if err != nil {
+		logger.Warn(logShell, "could not start pty (%s)", err)
+		return errors.New("open pty failed")
+	}
+
+	err = PtyRun(cmd, tty)
+	if err != nil {
+		logger.Warn("", "%s", err)
+		return err
+	}
+
+	// Teardown session
+	var once sync.Once
+	close := func() {
+		tty.Close()
+		fPty.Close()
+		channel.Close()
+		cmd.Process.Kill()
+		p_stat, err := cmd.Process.Wait()
+		logger.Warn(logShell,"exec-- closed, p_stat: %v err: %v", p_stat, err)
+		//fmt.Printf("exec-- finished!!!!\n")
+	}
+
+	// Pipe session to bash and visa-versa
+	go func() {
+		nbytes, err := io.Copy(channel, fPty)
+		logger.Info(logShell, "exec-- send nbytes %d, err: %v", nbytes, err)
+		once.Do(close)
+	}()
+
+	go func() {
+		nbytes, err := io.Copy(fPty, channel) // copyBuffer(fPty, channel, nil)
+		logger.Info(logShell, "exec-- receive nbytes %d, err: %v", nbytes, err)
+		once.Do(close)
+	}()
+	return nil
+}
+
 func handleWindowChanged(req *ssh.Request, fPty *os.File) {
 	w, h := parseDims(req.Payload)
 	SetWinsize(fPty.Fd(), w, h)
@@ -144,7 +235,9 @@ func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Co
 		case "exec":
 			var msg execMsg
 			if err := ssh.Unmarshal(req.Payload, &msg); err == nil {
-				name, execArgs, err := parseCommandPayload(msg.Command)
+				//name, execArgs, err := parseCommandPayload(msg.Command)
+				parts, err := shlex.Split(msg.Command, true)
+				name, execArgs := parts[0], parts[1:]
 				//fmt.Printf("------exec %s\n", name)
 				logger.Debug(logSender, "new exec command: %v args: %v user: %v, error: %v", name, execArgs,
 					connection.User.Username, err)
@@ -160,20 +253,16 @@ func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Co
 				}else if err == nil {
 					// execute cmd
 					if connection.User.HasPerm(dataprovider.PermShell) {
+						//TODO need to set CWD and ENV?
 						cmd := exec.Command(name, execArgs...)
-						var outbuf, errbuf bytes.Buffer
-						cmd.Stdout = &outbuf
-						cmd.Stderr = &errbuf
-						err = cmd.Run()
+						err = handleExec(req, channel, cmd)
 						if err != nil {
-							logger.Error(logShell, "--exec failed: %v", err)
+							logger.Error(logShell, "exec failed: %v", err)
+							ok = false
+						}else {
+							logger.Info(logShell, "exec started.")
+							ok = true // 还是需要关闭连接
 						}
-						channel.Write(errbuf.Bytes())
-						channel.Write(outbuf.Bytes())
-						channel.CloseWrite()
-						p_stat, err := cmd.Process.Wait()
-						logger.Warn(logShell,"exec finished, p_stat: %v err: %v", p_stat, err)
-						ok = true  // 还是需要关闭连接
 					}
 				}else {
 					logger.Error(logShell, "parseCommandPayload failed: %v", err)

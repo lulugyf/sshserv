@@ -4,7 +4,9 @@ go 1.15
 
 require (
 	github.com/alexedwards/argon2id v0.0.0-20200802152012-2464efd3196b
+	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
 	github.com/colinmarc/hdfs v1.1.3
+	github.com/creack/pty v1.1.7
 	github.com/go-chi/chi v1.5.1
 	github.com/go-chi/render v1.0.1
 	github.com/go-sql-driver/mysql v1.5.0

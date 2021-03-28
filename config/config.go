@@ -55,8 +55,8 @@ func init() {
 			},
 			Keys:         []serv.Key{},
 			IsSCPEnabled: false,
-			HDFS: "",
 			FullFunc: false,
+			Ext: &serv.ExtConf{},
 		},
 		ProviderConf: dataprovider.Config{
 			Driver:           "sqlite",

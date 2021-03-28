@@ -69,15 +69,21 @@ type Configuration struct {
 	// If Default open full functions ? (shell / LocalPortForward / RemotePortForward)
 	FullFunc bool `json:"full_func" mapstructure:"full_func"`
 
+	Ext *ExtConf  `json:"ext_conf" mapstructure:"ext_conf"`
+}
+
+type ExtConf struct {
 	// use HDFS as backend store, format: {user}@{namenodes or conf_dir}
 	HDFS string `json:"hdfs" mapstructure:"hdfs"`
 	// hosts list:  host-172-18-231-22,172.18.231.22 host-172-18-231-25,172.18.231.25 host-172-18-231-27,172.18.231.27 host-172-18-231-19,172.18.231.19 host-172-18-231-20,172.18.231.20
 	HDFSHosts string `json:"hdfs_hosts" mapstructure:"hdfs_hosts"`
 
 	BasePubkey string `json:"_base_pubkey" mapstructure:"_base_pubkey"`
+	BaseUser string `json:"_base_user" mapstructure:"_base_user"`
 
 	_basePubKey string
 	_baseUser string
+
 }
 
 // Key contains information about host keys
@@ -166,11 +172,21 @@ func (c *Configuration) Initialize(configDir string) error {
 }
 
 func (c *Configuration) _initBaseKey() {
-	if strings.Index(c.BasePubkey, "ssh-") >= 0 {
-		c._baseUser = "_base_"
-		s, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.BasePubkey))
+	if strings.Index(c.Ext.BasePubkey, "ssh-") >= 0 {
+		if c.Ext.BaseUser == "" {
+			c.Ext.BaseUser = `{"id":1,"username":"_base_","permissions":["*"],"password":"","home_dir":"/","uid":0,"gid":0,
+            "max_sessions":0, "quota_size":0,"quota_files":0,"used_quota_size":0,"used_quota_files":0,
+            "last_quota_update":0,"upload_bandwidth":0,"download_bandwidth":0}`
+		}
+		var user dataprovider.User
+		err := json.Unmarshal([]byte(c.Ext.BaseUser), &user)
+		if err != nil {
+			logger.Warn(logSender, "Unable to deserialize user info, cannot serv connection: %v", err)
+		}
+		c.Ext._baseUser = user.Username
+		s, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.Ext.BasePubkey))
 		if err == nil {
-			c._basePubKey = string(s.Marshal())
+			c.Ext._basePubKey = string(s.Marshal())
 			//fmt.Printf("parse succ [%v]\n", c._basePubKey)
 		}else{
 			fmt.Printf("---basePubkey parse failed [%v]\n", err)
@@ -182,11 +198,11 @@ func (c *Configuration) _checkBaseKey(user, pubkey string) *ssh.Permissions {
 	//	user,
 	//	base64.StdEncoding.EncodeToString([]byte(c._basePubKey) ),
 	//	base64.StdEncoding.EncodeToString([]byte(pubkey) ))
-	if user == c._baseUser && pubkey == c._basePubKey {
+	if user == c.Ext._baseUser && pubkey == c.Ext._basePubKey {
 		p := &ssh.Permissions{}
 		p.Extensions = make(map[string]string)
-		p.Extensions["user"] = `{"id":1,"username":"_base_","permissions":["*"],"password":"","home_dir":"/","uid":0,"gid":0,
-"max_sessions":0,"quota_size":0,"quota_files":0,"used_quota_size":0,"used_quota_files":0,"last_quota_update":0,"upload_bandwidth":0,"download_bandwidth":0}`
+
+		p.Extensions["user"] = c.Ext.BaseUser
 		return p
 	}
 	return nil
@@ -318,7 +334,7 @@ func (c *Configuration) handleSftpConnection(channel io.ReadWriteCloser, connect
 	var handler *sftp.Handlers = nil
 	//fmt.Printf("------hdfs[%s] full_func[%v]\n", c.HDFS, c.FullFunc)
 	var hdfsHandler *hh.HConnection = nil
-	if c.HDFS == "" {
+	if c.Ext.HDFS == "" {
 		handler = &sftp.Handlers{
 			FileGet:  connection,
 			FilePut:  connection,
@@ -327,8 +343,8 @@ func (c *Configuration) handleSftpConnection(channel io.ReadWriteCloser, connect
 		}
 	}else{
 		hdfsHandler = hh.NewHandler(connection, connection.User, connection.ID, connection.protocol)
-		cc := strings.Split(c.HDFS, "@")
-		err := hdfsHandler.MkHdfsClient(cc[1], cc[0], c.HDFSHosts)
+		cc := strings.Split(c.Ext.HDFS, "@")
+		err := hdfsHandler.MkHdfsClient(cc[1], cc[0], c.Ext.HDFSHosts)
 		if err != nil {
 			fmt.Printf("---connect hdfs failed: %v\n", err)
 		}else {

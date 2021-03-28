@@ -19,8 +19,12 @@ func (l listerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 		return 0, io.EOF
 	}
 
+	maxlen := offset+int64(len(f))
+	if maxlen > int64(len(l)) {
+		maxlen = int64(len(l))
+	}
 	n := 0
-	for i, fi := range l[offset:] {
+	for i, fi := range l[offset:maxlen] {
 		f[i] = & sftpFileInfo{fi }
 		n += 1
 	}
