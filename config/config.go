@@ -18,13 +18,13 @@ import (
 
 const (
 	logSender     = "config"
-	defaultBanner = "SFTPGo"
+	defaultBanner = "SSHServ"
 	// DefaultConfigName defines the name for the default config file.
 	// This is the file name without extension, we use viper and so we
 	// support all the config files format supported by viper
-	DefaultConfigName = "sftpgo"
+	DefaultConfigName = "sshserv"
 	// ConfigEnvPrefix defines a prefix that ENVIRONMENT variables will use
-	configEnvPrefix = "sftpgo"
+	configEnvPrefix = "sshserv"
 )
 
 var (

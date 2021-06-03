@@ -59,7 +59,8 @@ func (c Connection) Fileread(request *sftp.Request) (io.ReaderAt, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if _, err := os.Stat(p); os.IsNotExist(err) {
+	st1, err := os.Stat(p)
+	if os.IsNotExist(err) {
 		return nil, sftp.ErrSshFxNoSuchFile
 	}
 
@@ -69,6 +70,7 @@ func (c Connection) Fileread(request *sftp.Request) (io.ReaderAt, error) {
 		return nil, sftp.ErrSshFxFailure
 	}
 
+	request.Attributes().Size = uint64(st1.Size())
 	logger.Debug(logSender, "fileread requested for path: \"%v\", user: %v", p, c.User.Username)
 
 	transfer := Transfer{

@@ -1,5 +1,5 @@
 
-sshserv:
+sshserv: main.go serv/shell_linux.go
 	go build -ldflags="-s -w" 
 
 clean:

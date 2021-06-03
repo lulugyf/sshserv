@@ -79,7 +79,7 @@ func init() {
 			"This flag can be set using SFTPGO_CONFIG_FILE env var too.")
 	viper.BindPFlag(configFileKey, serveCmd.Flags().Lookup(configFileFlag))
 
-	viper.SetDefault(logFilePathKey, "sftpgo.log")
+	viper.SetDefault(logFilePathKey, "sshserv.log")
 	viper.BindEnv(logFilePathKey, "SFTPGO_LOG_FILE_PATH")
 	serveCmd.Flags().StringVarP(&logFilePath, logFilePathFlag, "l", viper.GetString(logFilePathKey),
 		"Location for the log file. This flag can be set using SFTPGO_LOG_FILE_PATH env var too.")

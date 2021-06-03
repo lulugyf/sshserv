@@ -14,8 +14,8 @@ const (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "sftpgo",
-		Short: "Full featured and highly configurable SFTP server",
+		Use:   "sshserv",
+		Short: "Full featured and highly configurable SSH server",
 	}
 )
 
@@ -23,7 +23,7 @@ func init() {
 	version := utils.GetAppVersion()
 	rootCmd.Flags().BoolP("version", "v", false, "")
 	rootCmd.Version = version.GetVersionAsString()
-	rootCmd.SetVersionTemplate(`{{printf "SFTPGo version: "}}{{printf "%s" .Version}}
+	rootCmd.SetVersionTemplate(`{{printf "SSHServ version: "}}{{printf "%s" .Version}}
 `)
 }
 

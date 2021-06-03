@@ -18,15 +18,19 @@ def deluser(uname = "gg"):
                                     verify=True)
     print(r.status_code, r.text)
 
-def getusers(username):
+def getusers(username=""):
 #     username = "laog1"
     r = requests.get(userPath, params={"limit":50, "offset":0, "order": 'ASC',
     											"username":username})
-    print(r.status_code, r.text)
+    #print(r.status_code, r.text)
     if r.status_code == 200:
-        j = json.loads(r.text)
+        j = r.json()
         if len(j) > 0:
-            return j[0]
+            if username != "":
+                return j[0]
+            else:
+                for u in j:
+                    print(f"{u['id']}: Name:{u['username']} Home:{u['home_dir']}")
     return None
 
 def updateuser():
@@ -49,7 +53,7 @@ def updateuser():
     r = requests.put(urlparse.urljoin(userPath, "user/" + str(userid)), json=user)
     print(" -- updateuser", r.status_code, r.text)
 
-def adduser(uname="gg", upass="ll", home="/", pubkey="", perms=['*',]):
+def adduser(uname="gg", upass="ll", home="/", pubkey="", perms=['list', 'download', 'upload', 'delete', 'rename', 'create_dirs']):
     userobj = {'id': 0, 'username': uname, 'uid': 0, 'gid': 0, 'max_sessions': 0,
                'quota_size': 0, 'quota_files': 0, 'upload_bandwidth': 0, 'download_bandwidth': 0,
                'home_dir': home,
@@ -67,7 +71,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
         if cmd == 'add':
-            adduser(uname=sys.argv[2])
+            adduser(uname=sys.argv[2], upass=sys.argv[3], home=sys.argv[4])
         elif cmd == 'del':
             deluser(uname=sys.argv[2])
         elif cmd == 'list':

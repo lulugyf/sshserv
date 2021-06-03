@@ -170,6 +170,20 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err er
 	return written, err
 }
 
+func PtyRun1(c *exec.Cmd, tty *os.File) (io.ReadCloser, error) {
+	defer tty.Close()
+	c.Stdout = tty
+	c.Stdin = tty
+	c.SysProcAttr = &syscall.SysProcAttr{
+		Setctty: true,
+		Setsid:  true,
+	}
+	errReader, err := c.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	return errReader, c.Start()
+}
 
 func handleExec(req *ssh.Request, channel ssh.Channel, cmd *exec.Cmd) error{
 	fPty, tty, err := pty.Open()
@@ -177,6 +191,7 @@ func handleExec(req *ssh.Request, channel ssh.Channel, cmd *exec.Cmd) error{
 		logger.Warn(logShell, "could not start pty (%s)", err)
 		return errors.New("open pty failed")
 	}
+
 
 	err = PtyRun(cmd, tty)
 	if err != nil {
@@ -187,13 +202,15 @@ func handleExec(req *ssh.Request, channel ssh.Channel, cmd *exec.Cmd) error{
 	// Teardown session
 	var once sync.Once
 	close := func() {
+		//stderr.Close()
 		tty.Close()
 		fPty.Close()
 		channel.Close()
-		cmd.Process.Kill()
+		//if ! cmd.ProcessState.Exited() {
+			cmd.Process.Kill()
+		//}
 		p_stat, err := cmd.Process.Wait()
 		logger.Warn(logShell,"exec-- closed, p_stat: %v err: %v", p_stat, err)
-		//fmt.Printf("exec-- finished!!!!\n")
 	}
 
 	// Pipe session to bash and visa-versa
@@ -208,6 +225,7 @@ func handleExec(req *ssh.Request, channel ssh.Channel, cmd *exec.Cmd) error{
 		logger.Info(logShell, "exec-- receive nbytes %d, err: %v", nbytes, err)
 		once.Do(close)
 	}()
+
 	return nil
 }
 
@@ -253,8 +271,10 @@ func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Co
 				}else if err == nil {
 					// execute cmd
 					if connection.User.HasPerm(dataprovider.PermShell) {
-						//TODO need to set CWD and ENV?
 						cmd := exec.Command(name, execArgs...)
+						cmd.Env = append(os.Environ(), "TERM=vt100",
+							fmt.Sprintf("HOME=%s", connection.User.HomeDir))
+						cmd.Dir = connection.User.HomeDir
 						err = handleExec(req, channel, cmd)
 						if err != nil {
 							logger.Error(logShell, "exec failed: %v", err)
@@ -263,6 +283,8 @@ func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Co
 							logger.Info(logShell, "exec started.")
 							ok = true // 还是需要关闭连接
 						}
+						req.Reply(ok, nil)
+						return // this will end the session
 					}
 				}else {
 					logger.Error(logShell, "parseCommandPayload failed: %v", err)

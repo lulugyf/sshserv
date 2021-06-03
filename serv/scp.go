@@ -46,14 +46,14 @@ func (c *scpCommand) handle() error {
 	commandType := c.getCommandType()
 	logger.Debug(logSenderSCP, "handle scp command, args: %v user: %v command type: %v, dest path: %v",
 		c.args, c.connection.User.Username, commandType, destPath)
-	if commandType == "-t" {
+	if commandType == "-t" || commandType == "-pt" {
 		// -t means "to", so upload
 		err = c.handleRecursiveUpload()
 		if err != nil {
 			return err
 		}
 
-	} else if commandType == "-f" {
+	} else if commandType == "-f" || commandType == "-pf" {
 		// -f means "from" so download
 		err = c.readConfirmationMessage()
 		if err != nil {
@@ -487,6 +487,9 @@ func (c *scpCommand) handleDownload(filePath string) error {
 // We ensure that the path is absolute and in SFTP (UNIX) format
 func (c *scpCommand) getDestPath() string {
 	destPath := filepath.ToSlash(c.args[len(c.args)-1])
+	if destPath[0] == '\'' || destPath[0] == '"' {
+		destPath = destPath[1:len(destPath)-1]
+	}
 	if !filepath.IsAbs(destPath) {
 		destPath = "/" + destPath
 	}
