@@ -1,0 +1,37 @@
+{
+  "sftpd": {
+    "bind_port": 2022,
+    "bind_address": "",
+    "idle_timeout": 15,
+    "max_auth_tries": 0,
+    "umask": "0022",
+    "banner": "SFTPGo",
+    "upload_mode": 0,
+    "actions": {
+      "execute_on": [],
+      "command": "",
+      "http_notification_url": ""
+    },
+    "keys": [],
+    "enable_scp": true,
+    "full_func": true,
+    "_base_pubkey": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDIDBWpa5/gMVrePUzz68iORBVcc+QL9E71j6PWM//80aZNzj4/xyKwi1t+iQvCRd3DWYIhpcit2WU2T9CcarskLe0gaZI8R6gMeDknuuHdMGkEms8zeu+BFlBNn9PAdlZ49KccmsUo7Z8W0Vq0Ls9gxI7habSE0vTii7sFQHy8EP3miQ9nntNa/Qc7EO+glOf9OfVzq1giNY0gY67u+iWavrlZSdydbL0RyNa2sc9miFUWlvS9Nhy+jLdhsoA8dvSs+1WntBbhJKu3SWQ4QGsa3n2D3txylM9ygyJg/WqVhVkmcDV1XT7UBM5wXOmKx6pfig2N6m5hHPTVluZIahKp"
+  },
+  "data_provider": {
+    "driver": "sqlite",
+    "name": "sftpgo.db",
+    "host": "",
+    "port": 5432,
+    "username": "",
+    "password": "",
+    "sslmode": 0,
+    "connection_string": "",
+    "users_table": "users",
+    "manage_users": 1,
+    "track_quota": 2
+  },
+  "httpd": {
+    "bind_port": 8080,
+    "bind_address": "127.0.0.1"
+  }
+}

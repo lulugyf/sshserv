@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alexedwards/argon2id"
 	"golang.org/x/crypto/bcrypt"
@@ -52,7 +53,7 @@ var (
 	provider           Provider
 	sqlPlaceholders    []string
 	validPerms         = []string{PermAny, PermListItems, PermDownload, PermUpload, PermDelete, PermRename,
-		PermCreateDirs, PermCreateSymlinks}
+		PermCreateDirs, PermCreateSymlinks, "shell", "_expire:"}
 	hashPwdPrefixes  = []string{argonPwdPrefix, bcryptPwdPrefix, pbkdf2SHA1Prefix, pbkdf2SHA256Prefix, pbkdf2SHA512Prefix}
 	pbkdfPwdPrefixes = []string{pbkdf2SHA1Prefix, pbkdf2SHA256Prefix, pbkdf2SHA512Prefix}
 )
@@ -91,6 +92,9 @@ type Config struct {
 	//    With this configuration the "quota scan" REST API can still be used to periodically update space usage
 	//    for users without quota restrictions
 	TrackQuota int `json:"track_quota" mapstructure:"track_quota"`
+
+	// default expire, <=0: not use, unit: minutes
+	DefaultUserExpire int `json:"default_expire" mapstructure:"default_expire"`
 }
 
 // ValidationError raised if input data is not valid
@@ -201,6 +205,24 @@ func AddUser(p Provider, user User) error {
 	if config.ManageUsers == 0 {
 		return &MethodDisabledError{err: manageUsersDisabledError}
 	}
+
+	var ex_tm int64
+	var custom_expire bool = false
+	for i, p := range user.Permissions {
+		if len(p) < 9 || p[:8] != "_expire:" {
+			continue
+		}
+		fmt.Sscanf(p[8:], "%d", &ex_tm) // unit: minutes
+		user.Permissions[i] = fmt.Sprintf("_expire:%d", time.Now().Unix()+ex_tm*60)
+		logger.Warn(logSender, "add user %s with expired %d minutes\n", user.Username, ex_tm)
+		custom_expire = true
+	}
+	if !custom_expire && config.DefaultUserExpire > 0 {
+		user.Permissions = append(user.Permissions, fmt.Sprintf("_expire:%d",
+			time.Now().Unix()+int64(config.DefaultUserExpire*60)) )
+		logger.Info(logSender, "add user %s with default expire %d minutes", user.Username, config.DefaultUserExpire)
+	}
+
 	return p.addUser(user)
 }
 
@@ -246,6 +268,10 @@ func validateUser(user *User) error {
 		return &ValidationError{err: fmt.Sprintf("home_dir must be an absolute path, actual value: [%v]--", user.HomeDir)}
 	}
 	for _, p := range user.Permissions {
+		px := strings.Index(p, ":")
+		if px > 0 {
+			p = p[:px+1]
+		}
 		if !utils.IsStringInSlice(p, validPerms) {
 			return &ValidationError{err: fmt.Sprintf("Invalid permission: %v", p)}
 		}

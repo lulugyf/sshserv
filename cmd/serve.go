@@ -142,6 +142,9 @@ func startServe() {
 
 	serv.SetDataProvider(dataProvider)
 
+	logger.Info(logSender, "starting user expire scan...")
+	go check_user_expire(dataProvider)
+
 	shutdown := make(chan bool)
 
 	go func() {
@@ -178,4 +181,46 @@ func startServe() {
 	}
 
 	<-shutdown
+}
+
+// GetUsers(p Provider, limit int, offset int, order string, username string) ([]User, error)
+func check_user_expire_once(provider dataprovider.Provider) {
+	var _to_be_deleted []dataprovider.User = make([]dataprovider.User, 0)
+	for i := 0; true; i += 30 {
+		users, err := dataprovider.GetUsers(provider, 30, i, "", "")
+		if err != nil {
+			break
+		}
+		if len(users) == 0 {
+			break
+		}
+		now := time.Now().Unix()
+		var ex_tm int64
+		for _, user := range users {
+			//fmt.Printf("--- checking user: %s\n", user.Username)
+			for _, p := range user.Permissions {
+				if len(p) < 10 || p[:8] != "_expire:" {
+					continue
+				}
+				fmt.Sscanf(p[8:], "%d", &ex_tm)
+				if now > ex_tm {
+					//fmt.Printf("user %s expired\n", user.Username)
+					_to_be_deleted = append(_to_be_deleted, user)
+				}
+			}
+		}
+	}
+	//remove the user record
+	for _, user := range _to_be_deleted {
+		logger.Warn(logSender, "user %s expired, removed!", user.Username)
+		dataprovider.DeleteUser(provider, user)
+	}
+
+}
+
+func check_user_expire(provider dataprovider.Provider) {
+	for {
+		check_user_expire_once(provider)
+		time.Sleep(60 * time.Second)
+	}
 }

@@ -308,7 +308,8 @@ func handleSSHRequest(in <-chan *ssh.Request, channel ssh.Channel, connection Co
 				}
 			}else{
 				ok = false
-				logger.Warn(logShell, "Denied shell of user [%s]", connection.User.Username)
+				logger.Warn(logShell, "Denied shell of user [%s] full_func:[%v] perms:[%v]",
+					connection.User.Username, c.FullFunc, connection.User.Permissions)
 			}
 		case "window-change":
 			if fPty == nil {
